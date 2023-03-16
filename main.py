@@ -1,4 +1,5 @@
 import datetime
+import logging
 from os import getenv
 from threading import Thread
 from time import sleep
@@ -16,7 +17,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-usernam = getenv("FB_EMAIL")
+username = getenv("FB_EMAIL")
 password = getenv("FB_PASSWORD")
 threadId = getenv("THREAD_ID")
 trigger_message_time = getenv("TRIGGER_TIME", "16:00")
@@ -26,7 +27,7 @@ ICS_URL = "https://p71-caldav.icloud.com/published/2/MTg0MjE0MzQ0MzE4NDIxNPUuBwT
 COOKIE_BUTTON_XPATH = "//button[@ data-cookiebanner='accept_only_essential_button']"
 MESSAGE_TEXT_XPATH = "//div[@aria-label='Wiadomość']"
 
-display = Display(visible=0, size=(800, 600))
+display = Display(visible=False)
 display.start()
 
 chrome_driver = webdriver.Chrome()
@@ -42,6 +43,11 @@ weekDaysPL = (
     "niedziela",
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
 
 def login():
     chrome_driver.get("https://www.facebook.com/")
@@ -58,11 +64,11 @@ def login():
         WebDriverWait(chrome_driver, timeout).until(
             EC.presence_of_element_located((By.ID, "email"))
         )
-        chrome_driver.find_element(By.ID, "email").send_keys(usernam)
+        chrome_driver.find_element(By.ID, "email").send_keys(username)
         chrome_driver.find_element(By.ID, "pass").send_keys(password)
         chrome_driver.find_element(By.NAME, "login").click()
-    except (NoSuchElementException, TimeoutException) as e:
-        print("failed to login %s" % e)
+    except (NoSuchElementException, TimeoutException):
+        logging.exception("failed to login")
 
 
 def send_message(msg):
@@ -72,19 +78,21 @@ def send_message(msg):
         WebDriverWait(chrome_driver, timeout).until(
             EC.presence_of_element_located((By.XPATH, MESSAGE_TEXT_XPATH))
         )
-        chrome_driver.find_element(By.XPATH, MESSAGE_TEXT_XPATH).send_keys(
-            msg, Keys.ENTER
-        )
-    except TimeoutException as e:
-        print("%s: failed to send message: %s" % (datetime.datetime.now(), e))
+    except TimeoutException:
+        logging.exception("failed to send message")
 
+    message_field = chrome_driver.find_element(By.XPATH, MESSAGE_TEXT_XPATH)
+    for m in msg:
+        message_field.send_keys(m)
+        message_field.send_keys(Keys.SHIFT, Keys.ENTER)
+    message_field.send_keys(Keys.ENTER)
 
 def download_ics():
-    print("%s: downloading ics..." % (datetime.datetime.now()))
+    logging.info("downloading ics...")
     try:
         f = urlopen(ICS_URL)
-    except Exception as e:
-        print("error loading ics, %s" % e)
+    except Exception:
+        logging.exception("error loading ics")
         return
     return f.read()
 
@@ -110,23 +118,22 @@ def trigger_message(ics):
     cal = Calendar().from_ical(ics)
     events = lookup_events(cal)
     if events:
-        fb_msg_prefix = "SmiecioBot ♻ > przygotuj na jutro (%s): " % (
+        fb_msg = ["Tutaj SmiecioBot ♻"]
+        fb_msg.append("Przygotuj na jutro (%s): " % (
             weekDaysPL[events[0]["dtstart"].isoweekday()]
-        )
-        msg_suffix = ""
+        ))
         for i, evt in enumerate(events):
-            if i > 0:
-                msg_suffix += ", "
-            msg_suffix += evt["summary"]
+            evt_text = "☑ %s" % (evt["summary"])
             if evt["description"] is not None:
-                msg_suffix += " (%s)" % evt["description"]
+                evt_text += " (%s)" % evt["description"]
+            fb_msg.append(evt_text)
 
-        fb_msg = fb_msg_prefix + msg_suffix + ". Dziękuję"
-        print("%s: sending message: '%s'" % (datetime.datetime.now(), fb_msg))
+        fb_msg.append("Dziękuję")
+        logging.info("sending message: '%s'" % " ".join(str(x) for x in fb_msg))
         if not DRY_RUN:
             send_message(fb_msg)
     else:
-        print("%s: no events today" % datetime.datetime.now())
+        logging.info("no events today")
 
 
 if __name__ == "__main__":
@@ -140,8 +147,8 @@ if __name__ == "__main__":
     login()
 
     schedule.every().day.at(trigger_message_time).do(trigger_message, ics)
-    print("%s: SmiecioBot started!" % (datetime.datetime.now()))
-
+    logging.info("SmiecioBot started!")
+    trigger_message(ics) # debug
     while True:
         schedule.run_pending()
         sleep(60)
