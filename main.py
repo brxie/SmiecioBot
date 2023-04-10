@@ -114,10 +114,23 @@ def lookup_events(cal):
                 )
     return events
 
+def lookup_events_mock(cal):
+    return [
+        {
+            "dtstart": datetime.date.today(),
+            "summary": "test",
+            "description": "test",
+        }
+    ]
 
 def trigger_message(ics):
     cal = Calendar().from_ical(ics)
-    events = lookup_events(cal)
+
+    lookup_events_func = lookup_events
+    if debug:
+        lookup_events_func = lookup_events_mock
+
+    events = lookup_events_func(cal)
     if events:
         fb_msg = ["Tutaj SmiecioBot ♻"]
         fb_msg.append("Wystaw na jutro ☀️ (%s): " % (
@@ -137,7 +150,7 @@ def trigger_message(ics):
 
 if __name__ == "__main__":
     ics = None
-    while ics is None:
+    while True:
         ics = download_ics()
         if ics is not None:
             break
@@ -152,4 +165,4 @@ if __name__ == "__main__":
 
     while True:
         schedule.run_pending()
-        sleep(60)
+        sleep(30)
