@@ -1,6 +1,7 @@
 import datetime
 import logging
 from os import getenv
+from os import path
 from threading import Thread
 from time import sleep
 from urllib.error import HTTPError
@@ -20,6 +21,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 username = getenv("FB_EMAIL")
 password = getenv("FB_PASSWORD")
 threadId = getenv("THREAD_ID")
+screenshotsDir = getenv("SCREENSHOTS_DIR")
 debug = getenv("DEBUG", 'false').lower() in ('true', '1', 't')
 visible = getenv("UI", 'false').lower() in ('true', '1', 't')
 trigger_message_time = getenv("TRIGGER_TIME", "16:00")
@@ -73,7 +75,7 @@ def login():
 
 
 def send_message(msg):
-    timeout = 300
+    timeout = 600
     chrome_driver.get("https://www.facebook.com/messages/t/" + threadId)
     try:
         WebDriverWait(chrome_driver, timeout).until(
@@ -81,6 +83,7 @@ def send_message(msg):
         )
     except TimeoutException:
         logging.exception("failed to send message")
+        save_screenshot(chrome_driver)
 
     message_field = chrome_driver.find_element(By.XPATH, MESSAGE_TEXT_XPATH)
     for m in msg:
@@ -147,6 +150,14 @@ def trigger_message(ics):
     else:
         logging.info("no events today")
 
+def save_screenshot(driver):
+    filename = "screenshot_" + datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z") + ".png"
+    original_size = driver.get_window_size()
+    required_width = driver.execute_script('return document.body.parentNode.scrollWidth')
+    required_height = driver.execute_script('return document.body.parentNode.scrollHeight')
+    driver.set_window_size(required_width, required_height)
+    driver.find_element(By.TAG_NAME, 'body').screenshot(path.join(screenshotsDir, filename))  # avoids scrollbar
+    driver.set_window_size(original_size['width'], original_size['height'])
 
 if __name__ == "__main__":
     ics = None
