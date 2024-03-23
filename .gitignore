@@ -2,3 +2,4 @@ run.sh
 venv
 *.log
 .vscode
+chrome_114_amd64.deb
