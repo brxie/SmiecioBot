@@ -28,12 +28,17 @@ trigger_message_time = getenv("TRIGGER_TIME", "16:00")
 
 ICS_URL = "https://p71-caldav.icloud.com/published/2/MTg0MjE0MzQ0MzE4NDIxNPUuBwTTG2rEEZaB3IqTt-sjB3X-WT2A4qKi9Upx_iZEhgNqVDvPAFRp_3Py3PMMOlEMlZphzr4aBaBde3jzqm0"
 COOKIE_BUTTON_XPATH = "//div[@aria-label='Decline optional cookies']"
-MESSAGE_TEXT_XPATH = "//div[@aria-label='Wiadomość']"
+MESSAGE_TEXT_XPATH = "//div[@aria-placeholder='Aa']"
 
 display = Display(visible=visible)
 display.start()
 
-chrome_driver = webdriver.Chrome()
+option = Options()
+option.add_argument("--disable-infobars")
+option.add_argument("--disable-extensions")
+option.add_argument("--disable-notifications")
+
+chrome_driver = webdriver.Chrome(options=option)
 
 weekDaysPL = (
     "",
